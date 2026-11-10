@@ -71,6 +71,19 @@ boppa.data.register(credentialedData(['YOUTUBE_MUSIC_API_KEY', 'YOUTUBE_MUSIC_CL
       return undefined;
     }
 
+    function lowResArtwork(url) {
+      if (!url) return url;
+      // Queue thumbnails start at 400x225 and can reach 853x479. Radio rows only
+      // need a small image, so ask each CDN for a roughly 160-180 px rendition.
+      if (url.indexOf('ytimg.com') !== -1) {
+        return url.replace(/\/[^\/?]+\.(jpg|jpeg|webp)(\?.*)?$/i, '/mqdefault.jpg');
+      }
+      if (url.indexOf('googleusercontent.com') !== -1) {
+        return url.replace(/=w\d+-h\d+[^&]*/, '=w160-h160-l90-rj');
+      }
+      return url.replace(/=w\d+-h\d+/, '=w160-h160');
+    }
+
     function upgradeArtwork(url) {
       if (!url) return url;
       if (url.indexOf('ytimg.com') !== -1) {
@@ -123,8 +136,8 @@ boppa.data.register(credentialedData(['YOUTUBE_MUSIC_API_KEY', 'YOUTUBE_MUSIC_CL
         }
 
         const thumbnails = renderer.thumbnail?.thumbnails || [];
-        const lowArtwork = thumbnails[1]?.url || thumbnails[0]?.url;
-        const highArtwork = upgradeArtwork(thumbnails[thumbnails.length - 1]?.url || lowArtwork);
+        const lowArtwork = lowResArtwork(thumbnails[0]?.url);
+        const highArtwork = upgradeArtwork(thumbnails[thumbnails.length - 1]?.url || thumbnails[0]?.url);
         for (const album of albums) {
           album.lowResArtworkUrl = lowArtwork;
           album.highResArtworkUrl = highArtwork;
