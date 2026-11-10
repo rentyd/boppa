@@ -27,7 +27,16 @@ boppa.data.register(credentialedData(['YOUTUBE_MUSIC_API_KEY', 'YOUTUBE_MUSIC_CL
         browseId: browseId
       })
     });
+    if (!resp.ok) {
+      throw new Error('YouTube Music album request failed with ' + resp.status);
+    }
     const data = await resp.json();
+    if (!data?.contents) {
+      const unavailable = data?.microformat?.microformatDataRenderer?.noindex === true;
+      throw new Error(unavailable
+        ? 'This album is no longer available on YouTube Music'
+        : 'YouTube Music returned no album content');
+    }
 
     function upgradeArtwork(url) {
       if (!url) return url;
