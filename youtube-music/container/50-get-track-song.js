@@ -96,7 +96,7 @@ boppa.data.register(credentialedData(['YOUTUBE_MUSIC_API_KEY', 'YOUTUBE_MUSIC_CL
         };
         if (artists.length > 0) result.profiles = artists;
         if (albumBrowseId) {
-          const albumItem = { id: albumBrowseId, title: albumName, lowResArtworkUrl: lowResArtworkUrl, highResArtworkUrl: highResArtworkUrl, metadata: { browseId: albumBrowseId } };
+          const albumItem = { id: albumBrowseId, title: albumName, subtitle: artists.map(a => a.name).join(', ') || undefined, lowResArtworkUrl: lowResArtworkUrl, highResArtworkUrl: highResArtworkUrl, metadata: { browseId: albumBrowseId } };
           if (year !== null) albumItem.year = year;
           result.tracklists = [albumItem];
         }
