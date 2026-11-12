@@ -106,7 +106,7 @@ boppa.data.register(credentialedData(['YOUTUBE_MUSIC_API_KEY', 'YOUTUBE_MUSIC_CL
                   url: 'https://music.youtube.com/watch?v=' + videoId
                 };
                 if (artists.length > 0) result.profiles = artists;
-                if (albumBrowseId) result.tracklists = [{ id: albumBrowseId, title: albumName, metadata: { browseId: albumBrowseId } }];
+                if (albumBrowseId) result.tracklists = [{ id: albumBrowseId, title: albumName, subtitle: artists.map(a => a.name).join(', ') || undefined, metadata: { browseId: albumBrowseId } }];
                 if (!seen.has(videoId)) { seen.add(videoId); results.push(result); }
               }
             }
@@ -156,7 +156,7 @@ boppa.data.register(credentialedData(['YOUTUBE_MUSIC_API_KEY', 'YOUTUBE_MUSIC_CL
               url: 'https://music.youtube.com/watch?v=' + videoId
             };
             if (artists.length > 0) result.profiles = artists;
-            if (albumBrowseId) result.tracklists = [{ id: albumBrowseId, title: albumName, metadata: { browseId: albumBrowseId } }];
+            if (albumBrowseId) result.tracklists = [{ id: albumBrowseId, title: albumName, subtitle: artists.map(a => a.name).join(', ') || undefined, metadata: { browseId: albumBrowseId } }];
             if (!seen.has(videoId)) { seen.add(videoId); results.push(result); }
           }
         }
