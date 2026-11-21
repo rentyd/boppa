@@ -1863,6 +1863,7 @@ async function attemptPaths(track, videoId, context, signal, requestedPaths, sig
   const failures = [];
   const repairedBackends = new Set();
   let loginRequiredFailures = 0;
+  let playabilityRefusalFailures = 0;
   let streamsIssued = false;
   for (let pathIndex = 0; pathIndex < paths.length; pathIndex++) {
     const path = paths[pathIndex];
@@ -1921,6 +1922,7 @@ async function attemptPaths(track, videoId, context, signal, requestedPaths, sig
       }
       failures.push(path + ': ' + message);
       if (isLoginRequired(e)) loginRequiredFailures++;
+      if (isPlayabilityRefusal(e)) playabilityRefusalFailures++;
       const nextPath = paths[pathIndex + 1];
       warn('playback path', path, 'failed:', message,
         nextPath ? '- falling back to ' + nextPath : '- no fallback remains');
@@ -1934,7 +1936,10 @@ async function attemptPaths(track, videoId, context, signal, requestedPaths, sig
   // age gate for two hours).
   return {
     failures: failures,
-    loginRequired: loginRequiredFailures > 0 && !streamsIssued
+    loginRequired: loginRequiredFailures > 0 && !streamsIssued,
+    playabilityRefused: failures.length > 0
+      && playabilityRefusalFailures === failures.length
+      && !streamsIssued
   };
 }
 
@@ -1973,15 +1978,16 @@ boppa.playback.register(credentialedPlayback(PRIMARY_CREDENTIAL_KEYS, {
   resolve: async function(track, options) {
     const signal = options?.signal;
     const context = storedCredentials();
-    const videoId = videoIdFrom(track);
+    let activeTrack = track;
+    let videoId = videoIdFrom(activeTrack);
     if (!videoId) throw new Error('This track has no video id');
 
-    let session = await detectSessionForResolve(track);
+    let session = await detectSessionForResolve(activeTrack);
     signal?.throwIfAborted();
     let paths = pathsForSession(session.signedIn);
     log('resolve:', videoId, session.signedIn ? 'signed in' : 'anonymous', JSON.stringify(paths));
 
-    const cached = cachedFragmentedDescriptor(track, videoId, context, session.signedIn);
+    const cached = cachedFragmentedDescriptor(activeTrack, videoId, context, session.signedIn);
     if (cached) {
       cached.handle.signal = signal;
       try {
@@ -1991,12 +1997,32 @@ boppa.playback.register(credentialedPlayback(PRIMARY_CREDENTIAL_KEYS, {
       } catch (e) {
         if (signal?.aborted) throw e;
         warn('cached', cached.handle.backend + '-aac', 'failed tail probe:', (e && e.message) || e, '- resolving a new path');
-        await clearCachedStream(track);
+        await clearCachedStream(activeTrack);
       }
     }
 
-    let outcome = await attemptPathsWhileOffline(track, videoId, context, signal, paths, session.signedIn);
+    let outcome = await attemptPathsWhileOffline(activeTrack, videoId, context, signal, paths, session.signedIn);
     if (outcome.descriptor) return outcome.descriptor;
+
+    if (outcome.playabilityRefused && !outcome.loginRequired) {
+      try {
+        const canonical = await youtubeMusicCanonicalReplacement(activeTrack, videoId, signal);
+        if (canonical) {
+          log('resolve: replaced moved track', videoId, 'with', canonical.videoId,
+            '| stored', canonical.result?.replaced === true);
+          activeTrack = canonical.track;
+          videoId = canonical.videoId;
+          paths = pathsForSession(session.signedIn);
+          outcome = await attemptPathsWhileOffline(
+            activeTrack, videoId, context, signal, paths, session.signedIn
+          );
+          if (outcome.descriptor) return outcome.descriptor;
+        }
+      } catch (e) {
+        if (signal?.aborted || isCredentialsError(e)) throw e;
+        warn('resolve: canonical replacement lookup failed:', (e && e.message) || e);
+      }
+    }
 
     // InnerTube refused with LOGIN_REQUIRED (age gate, private, members-only)
     // and nothing issued streams: only a session can change that. Never on a
@@ -2018,20 +2044,20 @@ boppa.playback.register(credentialedPlayback(PRIMARY_CREDENTIAL_KEYS, {
       }
       if (!session.signedIn) {
         signInOffered = true;
-        session = await requestSignIn(track, videoId);
+        session = await requestSignIn(activeTrack, videoId);
         signal?.throwIfAborted();
       }
       if (session.signedIn) {
         paths = pathsForSession(true);
         log('resolve: signed in, retrying', JSON.stringify(paths));
-        outcome = await attemptPathsWhileOffline(track, videoId, context, signal, paths, true);
+        outcome = await attemptPathsWhileOffline(activeTrack, videoId, context, signal, paths, true);
         if (outcome.descriptor) return outcome.descriptor;
       } else {
         throw new Error('non-retryable: Sign in to play this track');
       }
     }
 
-    await clearCachedStream(track);
+    await clearCachedStream(activeTrack);
     // A LOGIN_REQUIRED that a session cannot fix (already signed in, or the
     // popup was just offered) will not change on the engine's automatic retry.
     // Without a popup (visionOS-only configs) it stays retryable, as before.
