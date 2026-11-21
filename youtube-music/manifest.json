@@ -2,7 +2,7 @@
   "$schema": "../schema/manifest.v1.schema.json",
   "id": "music.youtube.com",
   "fqdn": "music.youtube.com",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "YouTube Music",
   "mediaKind": "music",
   "author": "/u/rentyd",
